@@ -1,5 +1,8 @@
 /.daml
+/.metals
+/.vscode
 /log
 navigator.log
 /daml.js
 sandbox.log
+.dlint.yaml
