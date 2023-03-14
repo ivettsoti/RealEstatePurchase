@@ -1,0 +1,5 @@
+/.daml
+/log
+navigator.log
+/daml.js
+sandbox.log
