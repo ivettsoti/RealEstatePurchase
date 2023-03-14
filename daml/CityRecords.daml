@@ -9,11 +9,13 @@ template CityRecords
         signatory clerk
 
         nonconsuming choice CreateHouse: ContractId House with
-                newOwner: Party
+                inpOwner: Party
+                inpAddress: Text
             controller clerk
-            do          
-                let deed = Deed with issuer = clerk, owner = newOwner, transactionId = "new"
-                create House with issuer = clerk, owner = newOwner, address = "NY", deed = deed
+            do
+                time <- getTime          
+                let deed = Deed with issuer = clerk, owner = inpOwner, transactionId = "new", created = time
+                create House with issuer = clerk, owner = inpOwner, address = inpAddress, deed = deed
 
 template CityRecordNotification
     with

@@ -1,18 +1,15 @@
 module House where
 
 import Payment
-import DA.List.Total
-import DA.Optional
-import Daml.Script
 
-
-type HouseAdId = ContractId HouseListing
+type HouseListingId = ContractId HouseListing
 
 data Deed = Deed
     with
         issuer: Party
         owner: Party
         transactionId: Text
+        created: Time
     deriving (Eq, Show)
 
 template House
@@ -29,18 +26,19 @@ template House
             && owner == deed.owner
             && issuer /= owner
 
-        nonconsuming choice CreateAd: HouseAdId with
+        nonconsuming choice CreateListing: HouseListingId with
                 price: Decimal
-                created: Time
             controller owner
             do
+                created <- getTime
                 create HouseListing with ..
         
         choice UpdateOwner: ContractId House with
                 newOwner: Party
             controller issuer
             do
-                let newDeed = Deed with issuer = issuer, owner = newOwner, transactionId = "new owner"
+                created <- getTime
+                let newDeed = Deed with issuer = issuer, owner = newOwner, transactionId = "new owner", ..
                 create House with owner = newOwner, deed = newDeed, ..
 
 template HouseListing
@@ -55,21 +53,21 @@ template HouseListing
         key (owner, address): (Party, Text)
         maintainer key._1
 
-        choice IncreasePrice: HouseAdId with
+        choice IncreasePrice: HouseListingId with
                 newPrice: Decimal
             controller owner
             do
                 assertMsg "New price is not more than the original. Did you mean decrease?" $ price < newPrice
                 create HouseListing with price = newPrice, ..
         
-        choice DecreasePrice: HouseAdId with
+        choice DecreasePrice: HouseListingId with
                 newPrice: Decimal
             controller owner
             do
                 assertMsg "New price is not less than the original. Did you mean increase?" $ price > newPrice
                 create HouseListing with price = newPrice, ..
 
-        choice TakeDownAd: () with
+        choice TakeDownListing: () with
             controller owner
             do
                 return ()
@@ -86,7 +84,7 @@ template HouseOffer
         ensure bidder /= houseAd.owner
             && bid > 0.0
         
-        key (bidder, houseAd): (Party, HouseListing)
+        key (bidder, bid, houseAd): (Party, Decimal, HouseListing)
         maintainer key._1
 
         choice AcceptOffer: (ContractId Payable, ContractId Payable) with
@@ -121,5 +119,3 @@ template HouseOffer
             controller bidder
             do
                 return ()
-
-

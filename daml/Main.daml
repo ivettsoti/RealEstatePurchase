@@ -34,11 +34,11 @@ setup = script do
       CityRecords with
         clerk = cityClerk
       CreateHouse with
-        newOwner = alice
-
-  now <- getTime
+        inpOwner = alice
+        inpAddress = "525 Myrtle Avenue, Brooklyn"
+      
   houseAdId <- submit alice do
-    exerciseCmd hoCid CreateAd with created = now, price = 100.0
+    exerciseCmd hoCid CreateListing with price = 100.0
 
   Some cc <- queryContractId alice houseAdId
 
@@ -99,8 +99,4 @@ setup = script do
 
   submit cityClerk do exerciseCmd notificationCid UpdateDeed
 
-  -- Can this be automatic after an event?
-  -- submit bob do archiveCmd offerByBob2Cid
-  -- submit charlie do archiveCmd offerByCharlieCid
-  -- submit alice do archiveCmd houseAdId
   return ()

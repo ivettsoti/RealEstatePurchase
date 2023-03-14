@@ -31,7 +31,6 @@ template Title
                 let report = TitleReport with reportDetails = details, passed = pass, ..
                 return (fee, report)
 
-
         nonconsuming choice NotifyCityClerk: ContractId CityRecordNotification with
                 cityClerk: Party
             controller admin
