@@ -1,0 +1,125 @@
+module House where
+
+import Payment
+import DA.List.Total
+import DA.Optional
+import Daml.Script
+
+
+type HouseAdId = ContractId HouseListing
+
+data Deed = Deed
+    with
+        issuer: Party
+        owner: Party
+        transactionId: Text
+    deriving (Eq, Show)
+
+template House
+    with
+        issuer: Party
+        owner: Party
+        address: Text
+        deed: Deed
+    where
+        signatory issuer
+        observer owner
+
+        ensure issuer == deed.issuer
+            && owner == deed.owner
+            && issuer /= owner
+
+        nonconsuming choice CreateAd: HouseAdId with
+                price: Decimal
+                created: Time
+            controller owner
+            do
+                create HouseListing with ..
+        
+        choice UpdateOwner: ContractId House with
+                newOwner: Party
+            controller issuer
+            do
+                let newDeed = Deed with issuer = issuer, owner = newOwner, transactionId = "new owner"
+                create House with owner = newOwner, deed = newDeed, ..
+
+template HouseListing
+    with
+        owner: Party
+        address: Text
+        price: Decimal
+        created: Time
+    where
+        signatory owner
+
+        key (owner, address): (Party, Text)
+        maintainer key._1
+
+        choice IncreasePrice: HouseAdId with
+                newPrice: Decimal
+            controller owner
+            do
+                assertMsg "New price is not more than the original. Did you mean decrease?" $ price < newPrice
+                create HouseListing with price = newPrice, ..
+        
+        choice DecreasePrice: HouseAdId with
+                newPrice: Decimal
+            controller owner
+            do
+                assertMsg "New price is not less than the original. Did you mean increase?" $ price > newPrice
+                create HouseListing with price = newPrice, ..
+
+        choice TakeDownAd: () with
+            controller owner
+            do
+                return ()
+
+template HouseOffer
+    with
+        bidder: Party
+        bid: Decimal
+        houseAd: HouseListing
+    where
+        signatory bidder
+        observer houseAd.owner
+
+        ensure bidder /= houseAd.owner
+            && bid > 0.0
+        
+        key (bidder, houseAd): (Party, HouseListing)
+        maintainer key._1
+
+        choice AcceptOffer: (ContractId Payable, ContractId Payable) with
+            controller houseAd.owner
+            do
+                deposit <- create Payable
+                    with
+                        from = bidder
+                        to = houseAd.owner
+                        amount = bid * 0.1
+                remaining <- create Payable
+                    with
+                        from = bidder
+                        to = houseAd.owner
+                        amount = bid * 0.9
+
+                return (deposit, remaining)
+
+        choice ChangeOffer: ContractId HouseOffer with
+                newPrice: Decimal
+            controller bidder
+            do
+                assertMsg "New price equals the old one, nothing changes" $ bid /= newPrice
+                create HouseOffer with bid = newPrice, ..
+
+        choice RejectOffer: () with
+            controller houseAd.owner
+            do
+                return ()
+
+        choice WithdrawOffer: () with
+            controller bidder
+            do
+                return ()
+
+

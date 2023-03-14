@@ -1,0 +1,106 @@
+module Main where
+
+import Daml.Script
+
+import House
+import Payment
+import Title
+import CityRecords
+
+setup : Script ()
+setup = script do
+-- user_setup_begin
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  charlie <- allocatePartyWithHint "Charlie" (PartyIdHint "Charlie")
+  titleAdmin <- allocatePartyWithHint "TitleAdmin" (PartyIdHint "TitleAdmin")
+  cityClerk <- allocatePartyWithHint "CityClerk" (PartyIdHint "CityClerk")
+
+  aliceId <- validateUserId "alice"
+  bobId <- validateUserId "bob"
+  charlieId <- validateUserId "charlie"
+  titleAdminId <- validateUserId "titleAdmin"
+  cityClerkId <- validateUserId "cityClerk"
+
+  createUser (User aliceId (Some alice)) [CanActAs alice]
+  createUser (User bobId (Some bob)) [CanActAs bob]
+  createUser (User charlieId (Some charlie)) [CanActAs charlie]
+  createUser (User titleAdminId (Some titleAdmin)) [CanActAs titleAdmin]
+  createUser (User cityClerkId (Some cityClerk)) [CanActAs cityClerk]
+-- user_setup_end
+
+  hoCid <- submit cityClerk do
+    createAndExerciseCmd
+      CityRecords with
+        clerk = cityClerk
+      CreateHouse with
+        newOwner = alice
+
+  now <- getTime
+  houseAdId <- submit alice do
+    exerciseCmd hoCid CreateAd with created = now, price = 100.0
+
+  Some cc <- queryContractId alice houseAdId
+
+  offerByBob <- submit bob do
+    createCmd 
+      HouseOffer with
+        bidder = bob
+        bid = 90.0
+        houseAd = cc
+
+  offerByCharlieCid <- submit charlie do
+    createCmd 
+      HouseOffer with
+        bidder = charlie
+        bid = 100.0
+        houseAd = cc
+
+  offerByBob2Cid <- submit bob do
+    exerciseCmd offerByBob ChangeOffer with newPrice = 110.0
+  
+  (deposit, remaining) <- submit alice do 
+    exerciseCmd offerByBob2Cid AcceptOffer
+
+  depositClaimCid <- submit bob do
+    exerciseCmd deposit ClaimPaid with transactionId = "Paying deposit"
+
+  submit alice do exerciseCmd depositClaimCid Receive
+
+  titleCid <- submit titleAdmin do
+    createCmd       
+      Title with
+        admin = titleAdmin
+        house = hoCid
+        client = bob
+  (feeCid, titleReport) <- submit titleAdmin do 
+    exerciseCmd titleCid    
+      CreateReport with
+        details = "Everything is ok"
+        pass = True
+        fee = 15.0
+
+  feeClaimCid <- submit bob do exerciseCmd feeCid ClaimPaid with transactionId = "Title fee paid"
+  submit titleAdmin do exerciseCmd feeClaimCid Receive
+  if titleReport.passed
+    then do
+      remainingClaimCid <- submit bob do
+        exerciseCmd remaining ClaimPaid with transactionId = "Paying remaining house price"
+
+      submit alice do exerciseCmd remainingClaimCid Receive
+      return ()
+    else do
+      submit bob do
+        exerciseCmd remaining CancelPayment with reason = "Title search failed"
+
+  notificationCid <- submit titleAdmin do 
+    exerciseCmd titleCid
+      NotifyCityClerk with cityClerk = cityClerk
+
+  submit cityClerk do exerciseCmd notificationCid UpdateDeed
+
+  -- Can this be automatic after an event?
+  -- submit bob do archiveCmd offerByBob2Cid
+  -- submit charlie do archiveCmd offerByCharlieCid
+  -- submit alice do archiveCmd houseAdId
+  return ()

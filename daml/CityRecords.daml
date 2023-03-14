@@ -1,0 +1,33 @@
+module CityRecords where
+
+import House
+
+template CityRecords
+    with
+        clerk: Party
+    where
+        signatory clerk
+
+        nonconsuming choice CreateHouse: ContractId House with
+                newOwner: Party
+            controller clerk
+            do          
+                let deed = Deed with issuer = clerk, owner = newOwner, transactionId = "new"
+                create House with issuer = clerk, owner = newOwner, address = "NY", deed = deed
+
+template CityRecordNotification
+    with
+        from: Party
+        to: Party
+        house: ContractId House
+        newOwner: Party
+    where
+        signatory from
+        observer to
+
+        ensure from /= to
+        
+        choice UpdateDeed: ContractId House with
+            controller to
+            do
+                exercise house UpdateOwner with newOwner = newOwner

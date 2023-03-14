@@ -1,0 +1,45 @@
+module Title where
+
+import House
+import Payment
+import CityRecords
+
+type HouseId = ContractId House
+
+template Title
+    with
+        admin: Party
+        house: HouseId
+        client: Party
+    where
+        signatory admin
+        observer client
+
+        ensure admin /= client
+        
+        nonconsuming choice CreateReport: (ContractId Payable, TitleReport) with
+                details: Text
+                pass: Bool
+                fee: Decimal
+            controller admin
+            do
+                fee <- create Payable
+                    with
+                        from = client
+                        to = admin
+                        amount = fee
+                let report = TitleReport with reportDetails = details, passed = pass, ..
+                return (fee, report)
+
+
+        nonconsuming choice NotifyCityClerk: ContractId CityRecordNotification with
+                cityClerk: Party
+            controller admin
+            do
+                create CityRecordNotification with from = admin, to = cityClerk, newOwner = client,..
+
+data TitleReport = TitleReport
+  with
+    house: HouseId
+    reportDetails: Text
+    passed: Bool

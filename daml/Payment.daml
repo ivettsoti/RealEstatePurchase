@@ -1,0 +1,54 @@
+module Payment where
+
+template Payable
+    with
+        amount: Decimal
+        from: Party
+        to: Party
+    where
+        signatory to
+        observer from
+        
+        choice ClaimPaid: ContractId PaymentClaim with
+                transactionId: Text
+            controller from
+            do
+                create PaymentClaim with ..
+
+        choice CancelPayment: () with
+                reason: Text
+            controller from
+            do
+                return ()
+
+template PaymentClaim
+    with
+        amount: Decimal
+        from: Party
+        to: Party
+        transactionId: Text
+    where
+        signatory from
+        observer to
+
+        choice Receive: ContractId Receipt with
+            controller to
+            do
+                received <- getTime
+                create Receipt with ..
+
+template Receipt
+    with
+        amount: Decimal
+        from: Party
+        to: Party
+        transactionId: Text
+        received: Time
+    where
+        signatory to, from
+
+        choice Dismiss: () with
+            controller from
+            do
+                return()
+        
